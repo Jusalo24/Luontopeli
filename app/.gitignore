@@ -1,0 +1,5 @@
+/build
+# Sensitive files
+google-services.json
+local.properties
+*.keystore
