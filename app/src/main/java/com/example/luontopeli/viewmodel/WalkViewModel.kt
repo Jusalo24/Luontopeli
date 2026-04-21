@@ -1,3 +1,5 @@
+package com.example.luontopeli.viewmodel
+
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -6,6 +8,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import androidx.lifecycle.ViewModel
+import com.example.luontopeli.data.local.AppDatabase
+import com.example.luontopeli.data.local.entity.WalkSession
+import com.example.luontopeli.sensor.StepCounterManager
+
 
 /**
  * ViewModel kävelyn hallintaan.

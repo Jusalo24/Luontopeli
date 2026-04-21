@@ -25,6 +25,8 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
+import com.example.luontopeli.viewmodel.formatDistance
+
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable

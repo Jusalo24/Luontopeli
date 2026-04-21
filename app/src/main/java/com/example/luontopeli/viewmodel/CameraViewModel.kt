@@ -27,88 +27,105 @@ import java.util.*
 
 // 📁 viewmodel/CameraViewModel.kt (viikon 5 lisäykset)
 
-// Lisää luokan alkuun:
-/** ML Kit -pohjainen kasvin tunnistaja (toimii laitteella ilman internetiä) */
-private val classifier = PlantClassifier()
+class CameraViewModels(application: Application) : AndroidViewModel(application) {
 
-/** ML Kit -tunnistuksen tulos (null = tunnistusta ei ole suoritettu) */
-private val _classificationResult = MutableStateFlow<ClassificationResult?>(null)
-val classificationResult: StateFlow<ClassificationResult?> = _classificationResult.asStateFlow()
+    private val db = AppDatabase.getDatabase(application)
 
-// takePhoto()-metodi päivittyy – ML Kit -tunnistus lisätään onImageSaved-callbackiin:
-fun takePhoto(context: Context, imageCapture: ImageCapture) {
-    _isLoading.value = true
+    private val repository = NatureSpotRepository(
+        dao = db.natureSpotDao(),
+        firestoreManager = FirestoreManager(),
+        storageManager = StorageManager(),
+        authManager = AuthManager()
+    )
 
-    val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
-        .format(Date())
-    val outputDir = File(context.filesDir, "nature_photos").also { it.mkdirs() }
-    val outputFile = File(outputDir, "IMG_${timestamp}.jpg")
-    val outputOptions = ImageCapture.OutputFileOptions.Builder(outputFile).build()
+    private val classifier = PlantClassifier()
 
-    imageCapture.takePicture(
-        outputOptions,
-        ContextCompat.getMainExecutor(context),
-        object : ImageCapture.OnImageSavedCallback {
+    private val _capturedImagePath = MutableStateFlow<String?>(null)
+    val capturedImagePath = _capturedImagePath.asStateFlow()
 
-            /** Kuva tallennettu onnistuneesti – käynnistä ML Kit -tunnistus */
-            override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                _capturedImagePath.value = outputFile.absolutePath
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading = _isLoading.asStateFlow()
 
-                // Tunnista kasvi kuvasta ML Kit:n avulla
-                viewModelScope.launch {
-                    try {
-                        val uri = Uri.fromFile(outputFile)
-                        val result = classifier.classify(uri, context)
-                        _classificationResult.value = result
-                    } catch (e: Exception) {
-                        _classificationResult.value =
-                            ClassificationResult.Error(e.message ?: "Tuntematon virhe")
+    private val _classificationResult =
+        MutableStateFlow<ClassificationResult?>(null)
+    val classificationResult = _classificationResult.asStateFlow()
+
+    var currentLatitude: Double = 0.0
+    var currentLongitude: Double = 0.0
+
+    fun takePhoto(context: Context, imageCapture: ImageCapture) {
+        _isLoading.value = true
+
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+            .format(Date())
+
+        val outputDir = File(context.filesDir, "nature_photos").also { it.mkdirs() }
+        val outputFile = File(outputDir, "IMG_${timestamp}.jpg")
+
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(outputFile).build()
+
+        imageCapture.takePicture(
+            outputOptions,
+            ContextCompat.getMainExecutor(context),
+            object : ImageCapture.OnImageSavedCallback {
+
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    _capturedImagePath.value = outputFile.absolutePath
+
+                    viewModelScope.launch {
+                        try {
+                            val uri = Uri.fromFile(outputFile)
+                            val result = classifier.classify(uri, context)
+                            _classificationResult.value = result
+                        } catch (e: Exception) {
+                            _classificationResult.value =
+                                ClassificationResult.Error(e.message ?: "Tuntematon virhe")
+                        } finally {
+                            _isLoading.value = false
+                        }
                     }
+                }
+
+                override fun onError(exception: ImageCaptureException) {
                     _isLoading.value = false
                 }
             }
-
-            /** Kuvan otto epäonnistui (esim. kameravirhe) */
-            override fun onError(exception: ImageCaptureException) {
-                _isLoading.value = false
-            }
-        }
-    )
-}
-
-/**
- * Tallentaa nykyisen luontolöydön Room-tietokantaan.
- * Luo NatureSpot-entiteetin tunnistustuloksen perusteella.
- */
-fun saveCurrentSpot() {
-    val imagePath = _capturedImagePath.value ?: return
-    viewModelScope.launch {
-        val result = _classificationResult.value
-
-        // Luodaan NatureSpot tunnistustuloksen perusteella
-        val spot = NatureSpot(
-            name = when (result) {
-                is ClassificationResult.Success -> result.label
-                else -> "Luontolöytö"
-            },
-            latitude = currentLatitude,
-            longitude = currentLongitude,
-            imageLocalPath = imagePath,
-            plantLabel = (result as? ClassificationResult.Success)?.label,
-            confidence = (result as? ClassificationResult.Success)?.confidence
         )
-        repository.insertSpot(spot)
-        clearCapturedImage()
+    }
+
+    fun clearCapturedImage() {
+        _capturedImagePath.value = null
+        _classificationResult.value = null
+    }
+
+    fun saveCurrentSpot() {
+        val imagePath = _capturedImagePath.value ?: return
+
+        viewModelScope.launch {
+            val result = _classificationResult.value
+
+            val spot = NatureSpot(
+                name = (result as? ClassificationResult.Success)?.label ?: "Luontolöytö",
+                latitude = currentLatitude,
+                longitude = currentLongitude,
+                imageLocalPath = imagePath,
+                plantLabel = (result as? ClassificationResult.Success)?.label,
+                confidence = (result as? ClassificationResult.Success)?.confidence
+            )
+
+            repository.insertSpot(spot)
+            clearCapturedImage()
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        classifier.close()
     }
 }
 
-/**
- * Vapauttaa ML Kit -resurssit ViewModelin tuhoutuessa.
- */
-override fun onCleared() {
-    super.onCleared()
-    classifier.close()
-}
+
+
 /**
  * ViewModel kameranäkymälle (CameraScreen).
  *

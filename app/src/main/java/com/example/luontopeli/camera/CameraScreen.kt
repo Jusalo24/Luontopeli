@@ -17,6 +17,21 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import com.example.luontopeli.viewmodel.CameraViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import coil.compose.AsyncImage
+import java.io.File
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import com.example.luontopeli.ml.ClassificationResult
 
 @Composable
 fun CameraScreen(viewModel: CameraViewModel = viewModel()) {
@@ -111,7 +126,7 @@ fun CameraScreen(viewModel: CameraViewModel = viewModel()) {
                     if (isLoading) {
                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                     } else {
-                        Icon(Icons.Default.Camera, "Ota kuva", tint = Color.White)
+                        Icon(Icons.Default.CameraAlt, contentDescription = "Ota kuva", tint = Color.White)
                     }
                 }
             }
@@ -230,6 +245,8 @@ fun ClassificationResultCard(result: ClassificationResult) {
                     Text("Tunnistus epäonnistui: ${result.message}",
                         style = MaterialTheme.typography.bodyMedium)
                 }
+
+                else -> {}
             }
         }
     }
